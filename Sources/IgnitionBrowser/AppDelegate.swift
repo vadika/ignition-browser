@@ -92,10 +92,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         menu.autoenablesItems = true
         menu.addItem(withTitle: "New Ignition Browser", action: #selector(newSession), keyEquivalent: "n").target = self
         let openURL = NSMenuItem(title: "Open URL…", action: #selector(showURLPanel), keyEquivalent: "i")
-        // Surface the ⌥⌘I global hotkey in the menu for discoverability. The real binding is
+        // Surface the ⌃⌥I global hotkey in the menu for discoverability. The real binding is
         // the Carbon hotkey (works system-wide); this only displays the glyph (an accessory
         // app's status menu doesn't process key equivalents globally, so it won't double-fire).
-        openURL.keyEquivalentModifierMask = [.option, .command]
+        openURL.keyEquivalentModifierMask = [.control, .option]
         openURL.target = self
         menu.addItem(openURL)
 
@@ -136,8 +136,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             self?.sessions.openSession(url: url)
         }
         urlPanel = panel
-        // ⌥⌘I : option+command+I. kVK_ANSI_I = 34.
-        hotKey = HotKey(keyCode: 34, modifiers: UInt32(optionKey | cmdKey)) { [weak self] in
+        // ⌃⌥I : control+option+I (⌥⌘I clashes with terminal/browser inspectors). kVK_ANSI_I = 34.
+        hotKey = HotKey(keyCode: 34, modifiers: UInt32(controlKey | optionKey)) { [weak self] in
             self?.showURLPanel()
         }
     }
