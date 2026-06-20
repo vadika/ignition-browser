@@ -50,10 +50,38 @@ plus a one-line rationale.
   attacker-controlled; validate/normalize host-side (http/https only), then write the
   URL over a vsock port to a guest-side listener that opens Firefox.
 - **Packaging: SwiftPM executable + hand-rolled `.app` bundling script (no .xcodeproj).**
-  Developer ID + hardened runtime + notarize + staple; Sparkle auto-update (stubbed).
-- **Guest rootfs acquisition: download-on-first-run + integrity check.** Multi-GB rootfs
-  keeps the .app small; first run also builds the host-bound warm snapshot locally with
-  visible progress (TODO M5).
+  Developer ID + hardened runtime + notarize + staple. **Sparkle auto-update — SHIPPED**
+  (see the auto-update pipeline below).
+- **Guest rootfs: bundled in the .app (gzipped), built once on first run.** The multi-GB
+  rootfs ships as `Resources/rootfs-browser.ext4.gz` (download-on-first-run was dropped —
+  the asset registry is private). First launch gunzips it and builds the host-bound
+  `browser-base` warm snapshot locally with a progress window; a guest-asset fingerprint
+  (`.guest-stamp`) rebuilds the base when the shipped assets or recipe change.
+
+## Shipped since the MVP (2026-06-20)
+
+- **URL intake surfaces (v0.0.16–v0.0.18).** Beyond the Services entry: a drop-under-the-
+  menu-bar **entry panel** (global hotkey **`⌃⌥I`**, prefilled from the clipboard), an
+  **Open Clipboard URL** menu item, and a version row. `⌥⌘I` was rejected — it clashes with
+  terminal/browser inspectors.
+- **Navigate the running Firefox via its DBus remote (v0.0.19).** Supersedes the
+  kill-and-relaunch decision below. cage runs under `dbus-run-session`, so the kiosk-loop
+  hands a new URL to the warm instance instead of cold-relaunching (~6s of Firefox startup
+  saved). Marionette was tried and rejected (same speed once network was the gate, plus a
+  persistent "remote control" address-bar tint).
+- **Static network config on restore (v0.0.20).** The on-restore hook (and netwatch
+  fallback) now assert `192.168.127.3/24`, gw/DNS `.1` statically instead of a ~5s `udhcpc`
+  handshake that gated the first page load. Each session has its own isolated single-client
+  gvproxy, so the deterministic `.3` never collides across concurrent VMs. Plus a 3s
+  **settle** after `BROWSER_READY` before snapshot, so the warm base captures a fully-painted
+  idle Firefox. Net result: opening a URL dropped from ~6.6s to ~3s (light page).
+- **Auto-update pipeline (v0.0.21).** **Sparkle** updater (silent auto-install, appcast on
+  GitHub Pages at `docs/appcast.xml`, EdDSA-signed in `release.yml`). A daily
+  **`firefox-watch`** workflow compares Alpine's `firefox-esr` to `.firefox-esr-version`; on
+  a bump, a **self-hosted runner on artemis2** rebuilds the rootfs, publishes assets, patch-
+  bumps + tags, and `release.yml` ships it. Gotchas baked into the scripts: bundle+sign
+  `Sparkle.framework` with an `@executable_path/../Frameworks` rpath; the rebuild job pushes
+  the tag via a **deploy key** (GITHUB_TOKEN-pushed tags don't trigger workflows).
 
 ## Open / deferred
 
@@ -63,21 +91,16 @@ plus a one-line rationale.
 - **Clipboard sharing** — deferred unless explicitly requested (paste-in/copy-out
   between host and guest).
 - **Warm-parent re-warm optimization** — keep a warm parent and re-warm after each
-  claim; skeleton restores from browser-base directly per session.
-- **Sparkle wiring** — appcast generation + EdDSA signing keys are stubbed.
-- **Rootfs hosting location** — where the multi-GB rootfs + snapshot are downloaded
-  from (and integrity manifest) is not yet decided.
-- **make-browser-base.sh net reconciliation** — RESOLVED: `NET_SOCKET=<gvproxy>` builds the
-  base over gvproxy (net device + lease present, no daemon); children get a fresh per-session
-  gvproxy at restore.
+  claim; current model restores from browser-base directly per session.
 
 ## Live-proven (2026-06-19, M-series HVF)
 
 Full runtime path verified end to end: a URL injected over vsock opens in Firefox in the
 restored microVM, reaching the public internet through the filtered user-mode NAT.
 - **Warm fork**: restore `browser-base` in ~16 ms (MAP_PRIVATE).
-- **Net**: per-session filtered gvproxy; restored guest re-DHCPs (192.168.127.x via netwatch)
-  and runs live HTTPS to public IPs; host/LAN refused by the egress filter.
+- **Net**: per-session filtered gvproxy; restored guest brings eth0 up statically (192.168.127.3,
+  superseding the original netwatch re-DHCP) and runs live HTTPS to public IPs; host/LAN refused
+  by the egress filter.
 - **URL injection**: host `CONNECT 7777` → guest `open-url` writes `/run/openurl.target` →
   `kiosk-loop` navigates Firefox; example.com loaded in the GUI window.
 
@@ -87,7 +110,7 @@ Non-obvious base-build requirements discovered (encoded in `make-browser-base.sh
    lease are captured; the netwatch poller re-DHCPs on restore.
 2. **Vsock device must be present in the snapshot.** The base cold-boot must pass
    `--vsock-uds`, else the guest has no vsock device and the host can't reach ports 7777/9000.
-3. **Navigate by relaunch, not remote.** Under cage there is no shared DBus session, so a
-   second `firefox-esr <url>` only hits the profile lock ("already running, not responding" →
-   black screen). `kiosk-loop` runs ONE `--no-remote` instance and relaunches it on a new URL
-   (tracking the real process via `pgrep`, since the firefox launcher pid exits immediately).
+3. **Navigate by relaunch, not remote.** *(Superseded in v0.0.19 — see "Shipped since the MVP".)*
+   The original kiosk-loop ran ONE `--no-remote` Firefox and cold-relaunched it on each URL,
+   because under cage there was no shared DBus session for a remote handoff. It now runs cage
+   under `dbus-run-session` and navigates the warm instance via its DBus remote (no relaunch).
