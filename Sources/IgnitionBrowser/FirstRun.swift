@@ -36,16 +36,21 @@ enum FirstRun {
     /// pinning the host. (boot's default is 1, and we used to pass no --smp at all.)
     static let baseVcpus = 4
 
+    /// Bump when a base-build parameter that is NOT captured by file sizes or baseVcpus
+    /// changes — notably the boot binary's guest resolution (GUI_W/GUI_H). r2 = the
+    /// 1400x880 integer-scaled window (ignition 0cf9d1c).
+    static let baseRecipeVersion = 2
+
     /// Fingerprint of the bundled guest assets + the base-build recipe. Changes whenever
-    /// the shipped guest OR a build parameter (e.g. vCPU count) changes, so an upgraded
-    /// app rebuilds browser-base instead of silently restoring a stale snapshot.
+    /// the shipped guest OR a build parameter (vCPU count, recipe version) changes, so an
+    /// upgraded app rebuilds browser-base instead of silently restoring a stale snapshot.
     static func guestStamp(_ config: Config) -> String {
         let fm = FileManager.default
         func size(_ url: URL?) -> Int64 {
             guard let url, let a = try? fm.attributesOfItem(atPath: url.path) else { return 0 }
             return (a[.size] as? NSNumber)?.int64Value ?? 0
         }
-        return "\(size(config.rootfsArchive ?? config.rootfsRaw))-\(size(config.kernelImage))-smp\(baseVcpus)"
+        return "\(size(config.rootfsArchive ?? config.rootfsRaw))-\(size(config.kernelImage))-smp\(baseVcpus)-r\(baseRecipeVersion)"
     }
 
     private static func stampFile(_ config: Config) -> URL {

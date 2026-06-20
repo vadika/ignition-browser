@@ -46,23 +46,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         firstRunWindow = win
 
         DispatchQueue.global().async {
-            do {
+            let result = Result {
                 try FirstRun.run(config) { msg in
                     DispatchQueue.main.async { label.stringValue = msg }
                 }
-                DispatchQueue.main.async {
-                    self.firstRunWindow?.close()
-                    self.firstRunWindow = nil
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.firstRunWindow?.close()
-                    self.firstRunWindow = nil
+            }
+            DispatchQueue.main.async {
+                self.firstRunWindow?.close()
+                self.firstRunWindow = nil
+                // Stay resident no matter what — never NSApp.terminate here. If the base
+                // actually got built (a late timeout can throw after the snapshot landed)
+                // treat it as done. Only a genuinely incomplete base shows an error, and
+                // even then the app stays in the menu bar (relaunch retries first-run).
+                if case .failure(let error) = result, !FirstRun.isComplete(config) {
                     let a = NSAlert()
-                    a.messageText = "Setup failed"
-                    a.informativeText = "\(error)"
+                    a.messageText = "Setup did not finish"
+                    a.informativeText = "\(error)\n\nIgnition Browser is still in the menu bar; it will retry the next time you open it."
                     a.runModal()
-                    NSApp.terminate(nil)
                 }
             }
         }
