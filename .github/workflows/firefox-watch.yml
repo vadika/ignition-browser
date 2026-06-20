@@ -1,0 +1,70 @@
+name: firefox-watch
+
+on:
+  schedule:
+    - cron: "17 6 * * *"      # daily 06:17 UTC
+  workflow_dispatch:
+    inputs:
+      force_version:
+        description: "Override detected firefox-esr version (testing)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.inputs.force_version }}" ]; then
+            NEW="${{ github.event.inputs.force_version }}"
+          else
+            NEW=$(docker run --rm alpine:3.19 sh -c \
+              'apk update -q && apk policy firefox-esr 2>/dev/null | sed -n "2p" | tr -d " " | cut -d: -f1')
+          fi
+          OLD=$(cat .firefox-esr-version 2>/dev/null || echo "")
+          echo "detected=$NEW old=$OLD"
+          if [ "$NEW" != "$OLD" ] && [ -n "$NEW" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+
+  rebuild:
+    needs: detect
+    if: needs.detect.outputs.changed == 'true' && github.event_name != 'pull_request'
+    runs-on: [self-hosted, artemis2]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Rebuild rootfs + publish assets
+        run: |
+          set -euo pipefail
+          ( cd ~/firecracker-mac/kimage/build && bash ./build-rootfs-browser.sh )
+          IGN_SHA=$(git -C vendor/ignition rev-parse --short=7 HEAD)
+          scripts/publish-guest-assets.sh "$IGN_SHA"
+          ( cd ~/kbuild/out && oras push --plain-http 127.0.0.1:5001/ignition-browser/guest-assets:latest \
+              Image:application/octet-stream rootfs-browser.ext4:application/octet-stream )
+      - name: Bump version + tag (triggers release.yml)
+        env:
+          NEW_FF: ${{ needs.detect.outputs.version }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$NEW_FF" > .firefox-esr-version
+          NEWVER=$(python3 scripts/bump_patch.py Resources/Info.plist)
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .firefox-esr-version Resources/Info.plist
+          git commit -m "release: v${NEWVER} (firefox-esr ${NEW_FF})"
+          git tag "v${NEWVER}"
+          git push origin HEAD:main "v${NEWVER}"
