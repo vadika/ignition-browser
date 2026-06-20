@@ -41,7 +41,7 @@ enum FirstRun {
     /// rebuilds (the raw ext4 is a fixed size; only the bundled .gz size varies, so this
     /// is the guaranteed lever). r2 = 1400x880 window; r3 = restore net re-init +
     /// close-Firefox-ends-session rootfs; r4 = firefox exit-code (close vs crash) rootfs.
-    static let baseRecipeVersion = 4
+    static let baseRecipeVersion = 5
 
     /// Fingerprint of the bundled guest assets + the base-build recipe. Changes whenever
     /// the shipped guest OR a build parameter (vCPU count, recipe version) changes, so an
@@ -118,6 +118,10 @@ enum FirstRun {
         boot.executableURL = config.bootBinary
         boot.arguments = [
             "--smp", "\(Self.baseVcpus)",
+            // 2 GiB: the default (512 MiB) OOM-kills firefox under llvmpipe, which then
+            // cascades (firefox relaunch churn, disrupted net re-init). make-browser-base
+            // used --mem 2048; FirstRun must match.
+            "--mem", "2048",
             // --gui-hidden: the guest renders + snapshots normally but the host window
             // stays hidden, so the warming browser never flashes a clickable window.
             "--gui-hidden", "--net", "--net-socket", gvSock.path,
