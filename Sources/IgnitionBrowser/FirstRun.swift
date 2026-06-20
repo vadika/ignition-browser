@@ -30,16 +30,22 @@ enum FirstRun {
         config.store.appendingPathComponent("snapshots/\(config.baseSnapshotName)", isDirectory: true)
     }
 
-    /// Fingerprint of the bundled guest assets (kernel + rootfs), by file size. Changes
-    /// whenever the shipped guest changes, so an upgraded app rebuilds browser-base
-    /// instead of silently restoring a stale snapshot built by a previous version.
+    /// vCPUs baked into browser-base. The guest renders Firefox with llvmpipe (software
+    /// GL, multithreaded), so a 1-vCPU base repaints painfully slowly — keystrokes and
+    /// clicks land but their on-screen effect lags. 4 gives llvmpipe room without
+    /// pinning the host. (boot's default is 1, and we used to pass no --smp at all.)
+    static let baseVcpus = 4
+
+    /// Fingerprint of the bundled guest assets + the base-build recipe. Changes whenever
+    /// the shipped guest OR a build parameter (e.g. vCPU count) changes, so an upgraded
+    /// app rebuilds browser-base instead of silently restoring a stale snapshot.
     static func guestStamp(_ config: Config) -> String {
         let fm = FileManager.default
         func size(_ url: URL?) -> Int64 {
             guard let url, let a = try? fm.attributesOfItem(atPath: url.path) else { return 0 }
             return (a[.size] as? NSNumber)?.int64Value ?? 0
         }
-        return "\(size(config.rootfsArchive ?? config.rootfsRaw))-\(size(config.kernelImage))"
+        return "\(size(config.rootfsArchive ?? config.rootfsRaw))-\(size(config.kernelImage))-smp\(baseVcpus)"
     }
 
     private static func stampFile(_ config: Config) -> URL {
@@ -104,6 +110,7 @@ enum FirstRun {
         let boot = Process()
         boot.executableURL = config.bootBinary
         boot.arguments = [
+            "--smp", "\(Self.baseVcpus)",
             // --gui-hidden: the guest renders + snapshots normally but the host window
             // stays hidden, so the warming browser never flashes a clickable window.
             "--gui-hidden", "--net", "--net-socket", gvSock.path,
