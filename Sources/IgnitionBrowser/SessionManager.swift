@@ -24,17 +24,20 @@ final class SessionManager: @unchecked Sendable {
     private var sessions: [String: Session] = [:]
     private let lock = NSLock()
 
-    /// Root holding all per-session temp dirs; sweepOrphans globs this.
+    /// Root holding all per-session socket dirs; sweepOrphans globs this. Kept SHORT:
+    /// macOS unix-socket paths cap at 104 bytes (sockaddr_un.sun_path), and
+    /// $TMPDIR + a full UUID + "gvproxy-ctl.sock" overflows it, so gvproxy/boot fail
+    /// to bind ("bind: invalid argument") and a session silently never starts.
     private var sessionsRoot: URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("IgnitionBrowser/sessions", isDirectory: true)
+        FileManager.default.temporaryDirectory.appendingPathComponent("ib", isDirectory: true)
     }
 
     // MARK: - Open
 
     func openSession(url: URL?) {
         let id = UUID().uuidString
-        let dir = sessionsRoot.appendingPathComponent(id, isDirectory: true)
+        // Short dir name (8 hex, not the full UUID) so socket paths stay under 104 bytes.
+        let dir = sessionsRoot.appendingPathComponent(String(id.prefix(8)), isDirectory: true)
         let gvproxySock = dir.appendingPathComponent("gvproxy.sock")
         let gvproxyCtl = dir.appendingPathComponent("gvproxy-ctl.sock")
         let vsockUds = dir.appendingPathComponent("vsock.sock")

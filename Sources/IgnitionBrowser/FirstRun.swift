@@ -49,7 +49,9 @@ enum FirstRun {
         }
 
         // 2. obtain the rootfs (gunzip the bundled archive to a temp file, or use the dev raw image).
-        let work = fm.temporaryDirectory.appendingPathComponent("ignbrowser-firstrun-\(UUID().uuidString)", isDirectory: true)
+        // Short dir name: macOS unix-socket paths cap at 104 bytes, and FirstRun's
+        // gvproxy/boot sockets live under here — a full UUID overflows the limit.
+        let work = fm.temporaryDirectory.appendingPathComponent("ib-fr-\(UUID().uuidString.prefix(8))", isDirectory: true)
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: work) }
 
