@@ -1,0 +1,3 @@
+[submodule "vendor/ignition"]
+	path = vendor/ignition
+	url = https://github.com/vadika/ignition.git

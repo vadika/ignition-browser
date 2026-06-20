@@ -1,0 +1,98 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# Required repository secrets:
+#   DEVELOPER_ID_CERT_P12       — base64 of the Developer ID Application .p12
+#   DEVELOPER_ID_CERT_PASSWORD  — password for the .p12
+#   NOTARY_API_KEY              — base64 of the App Store Connect API key (.p8)
+#   NOTARY_KEY_ID               — API key id
+#   NOTARY_ISSUER               — API key issuer id
+#   TS_AUTHKEY                  — Tailscale auth key (ephemeral, tagged) so CI joins the
+#                                 tailnet and oras-pulls the guest assets (kernel + rootfs)
+#                                 from the private registry at artemis2.tailc718e.ts.net:8443
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15   # Apple Silicon, macOS 15 SDK (boot links hv_gic_* APIs)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Go (for gvproxy)
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Fetch guest assets (kernel + rootfs) from the private registry
+        env:
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+        run: |
+          # macOS runners can't create a TUN (no signed network extension), so run
+          # tailscaled in USERSPACE mode with a SOCKS5 proxy and route oras through it.
+          # Go's socks5 client resolves the hostname via the proxy, so MagicDNS for the
+          # tailnet-only registry (artemis2.tailc718e.ts.net) resolves correctly.
+          brew install tailscale oras
+          sudo tailscaled --tun=userspace-networking \
+            --socks5-server=localhost:1055 \
+            --state="$RUNNER_TEMP/ts.state" --socket="$RUNNER_TEMP/ts.sock" \
+            >"$RUNNER_TEMP/tailscaled.log" 2>&1 &
+          sleep 3
+          tailscale --socket="$RUNNER_TEMP/ts.sock" up \
+            --authkey "$TS_AUTHKEY" --hostname "ci-$GITHUB_RUN_ID" --accept-dns=true
+          tailscale --socket="$RUNNER_TEMP/ts.sock" status | head -5 || true
+          mkdir -p vendor/ignition/kimage/out
+          ALL_PROXY=socks5://localhost:1055 HTTPS_PROXY=socks5://localhost:1055 \
+            oras pull "artemis2.tailc718e.ts.net:8443/ignition-browser/guest-assets:latest" \
+              -o vendor/ignition/kimage/out
+          ls -la vendor/ignition/kimage/out/Image vendor/ignition/kimage/out/rootfs-browser.ext4
+
+      - name: Import Developer ID cert
+        env:
+          CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          CERT_PW: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain"
+          KPW=$(uuidgen)
+          security create-keychain -p "$KPW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KPW" "$KEYCHAIN"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PW" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KPW" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          echo "DEV_ID=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' 'NR==1{print $2}')" >> "$GITHUB_ENV"
+
+      - name: Build + sign boot
+        run: scripts/build-boot.sh
+
+      - name: Build filtered gvproxy
+        run: scripts/build-gvproxy.sh
+
+      - name: Build .app
+        run: scripts/build-app.sh
+
+      - name: Notarize + staple
+        env:
+          NOTARY_KEY: ${{ runner.temp }}/notary.p8
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+          NOTARY_API_KEY_B64: ${{ secrets.NOTARY_API_KEY }}
+        run: |
+          echo "$NOTARY_API_KEY_B64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          scripts/notarize.sh
+
+      - name: Upload to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/IgnitionBrowser.app.zip

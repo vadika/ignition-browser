@@ -1,0 +1,112 @@
+diff --git a/pkg/services/forwarder/egress_filter.go b/pkg/services/forwarder/egress_filter.go
+new file mode 100644
+index 0000000..d64c4a2
+--- /dev/null
++++ b/pkg/services/forwarder/egress_filter.go
+@@ -0,0 +1,30 @@
++package forwarder
++
++import (
++	"net"
++
++	"gvisor.dev/gvisor/pkg/tcpip"
++)
++
++// cgnat is the RFC 6598 carrier-grade NAT range, which net.IP.IsPrivate does not cover.
++var cgnat = func() *net.IPNet { _, n, _ := net.ParseCIDR("100.64.0.0/10"); return n }()
++
++// blockedEgress reports whether the guest must NOT be allowed to reach addr.
++//
++// ignition-browser patch: the disposable browser gets NAT egress to the public
++// internet only. It must never reach the host itself or any host on the host's
++// LAN. So we refuse to dial any host-local / private / loopback / link-local /
++// CGNAT / unspecified destination at the gvproxy outbound NAT chokepoint
++// (tcp.go / udp.go), mirroring the upstream link-local guard.
++func blockedEgress(addr tcpip.Address) bool {
++	ip := net.ParseIP(addr.String())
++	if ip == nil {
++		return true // unparseable -> refuse, fail closed
++	}
++	return ip.IsLoopback() ||
++		ip.IsPrivate() || // RFC1918 (10/8, 172.16/12, 192.168/16) + IPv6 ULA fc00::/7
++		ip.IsLinkLocalUnicast() ||
++		ip.IsLinkLocalMulticast() ||
++		ip.IsUnspecified() ||
++		cgnat.Contains(ip)
++}
+diff --git a/pkg/services/forwarder/egress_filter_test.go b/pkg/services/forwarder/egress_filter_test.go
+new file mode 100644
+index 0000000..26b536b
+--- /dev/null
++++ b/pkg/services/forwarder/egress_filter_test.go
+@@ -0,0 +1,39 @@
++package forwarder
++
++import (
++	"net"
++	"testing"
++
++	"gvisor.dev/gvisor/pkg/tcpip"
++)
++
++func mustAddr(s string) tcpip.Address {
++	ip := net.ParseIP(s)
++	if ip == nil {
++		panic("bad test ip " + s)
++	}
++	if v4 := ip.To4(); v4 != nil {
++		return tcpip.AddrFromSlice(v4)
++	}
++	return tcpip.AddrFromSlice(ip.To16())
++}
++
++func TestBlockedEgress(t *testing.T) {
++	blocked := []string{
++		"192.168.68.1", "192.168.68.104", "10.0.0.1", "172.16.5.5", "192.168.1.1",
++		"127.0.0.1", "169.254.1.1", "100.64.0.1", "0.0.0.0", "::1", "fc00::1", "fe80::1",
++	}
++	allowed := []string{
++		"1.1.1.1", "8.8.8.8", "93.184.216.34", "23.55.10.1", "2606:4700:4700::1111",
++	}
++	for _, s := range blocked {
++		if !blockedEgress(mustAddr(s)) {
++			t.Errorf("expected %s BLOCKED, got allowed", s)
++		}
++	}
++	for _, s := range allowed {
++		if blockedEgress(mustAddr(s)) {
++			t.Errorf("expected %s ALLOWED, got blocked", s)
++		}
++	}
++}
+diff --git a/pkg/services/forwarder/tcp.go b/pkg/services/forwarder/tcp.go
+index ae18ada..7628ab7 100644
+--- a/pkg/services/forwarder/tcp.go
++++ b/pkg/services/forwarder/tcp.go
+@@ -31,6 +31,11 @@ func TCP(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLock *sync.Mute
+ 			localAddress = replaced
+ 		}
+ 		natLock.Unlock()
++		if blockedEgress(localAddress) {
++			log.Debugf("egress to %s refused (host/LAN/private)", localAddress)
++			r.Complete(true)
++			return
++		}
+ 		outbound, err := net.Dial("tcp", net.JoinHostPort(localAddress.String(), fmt.Sprint(r.ID().LocalPort)))
+ 		if err != nil {
+ 			log.Tracef("net.Dial() = %v", err)
+diff --git a/pkg/services/forwarder/udp.go b/pkg/services/forwarder/udp.go
+index 7b00312..2e9e62f 100644
+--- a/pkg/services/forwarder/udp.go
++++ b/pkg/services/forwarder/udp.go
+@@ -27,6 +27,10 @@ func UDP(s *stack.Stack, nat map[tcpip.Address]tcpip.Address, natLock *sync.Mute
+ 			localAddress = replaced
+ 		}
+ 		natLock.Unlock()
++		if blockedEgress(localAddress) {
++			log.Debugf("egress to %s refused (host/LAN/private)", localAddress)
++			return
++		}
+ 
+ 		var wq waiter.Queue
+ 		ep, tcpErr := r.CreateEndpoint(&wq)
