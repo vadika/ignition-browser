@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import Sparkle
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
@@ -9,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var urlPanel: URLEntryPanel?
     private var hotKey: HotKey?
     private var clipboardItem: NSMenuItem?
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Menu-bar agent: no Dock icon, and must NOT quit when the (only) window — the
@@ -106,6 +109,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
         menu.addItem(.separator())
         menu.addItem(withTitle: "Reveal Logs in Finder", action: #selector(revealLogs), keyEquivalent: "").target = self
+        menu.addItem(.separator())
+
+        let upd = NSMenuItem(title: "Check for Updates…",
+                             action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+                             keyEquivalent: "")
+        upd.target = updaterController
+        menu.addItem(upd)
         menu.addItem(.separator())
 
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
