@@ -49,6 +49,20 @@ codesign --force --options runtime --timestamp \
     --sign "$DEV_ID" "$RES/boot"
 codesign --force --options runtime --timestamp --sign "$DEV_ID" "$RES/gvproxy"
 
+# Bundle Sparkle.framework (resolved by SwiftPM) and deep-sign inner-first: hardened
+# runtime + timestamp on each nested executable, then the framework, then the app.
+FRAMEWORKS="$CONTENTS/Frameworks"
+mkdir -p "$FRAMEWORKS"
+SPARKLE_SRC="$(find .build/release -maxdepth 1 -name Sparkle.framework | head -1)"
+[ -n "$SPARKLE_SRC" ] || { echo "Sparkle.framework not found in .build/release (run swift build -c release first)" >&2; exit 1; }
+rm -rf "$FRAMEWORKS/Sparkle.framework"
+cp -R "$SPARKLE_SRC" "$FRAMEWORKS/Sparkle.framework"
+SPK="$FRAMEWORKS/Sparkle.framework/Versions/B"
+for nested in "$SPK"/XPCServices/*.xpc "$SPK/Autoupdate" "$SPK/Updater.app"; do
+  [ -e "$nested" ] && codesign --force --options runtime --timestamp --sign "$DEV_ID" "$nested"
+done
+codesign --force --options runtime --timestamp --sign "$DEV_ID" "$FRAMEWORKS/Sparkle.framework"
+
 codesign --force --options runtime --timestamp \
     --entitlements "Resources/IgnitionBrowser.entitlements" \
     --sign "$DEV_ID" "$APP"
