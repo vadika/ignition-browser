@@ -4,5 +4,5 @@
     <link>https://vadika.github.io/ignition-browser/appcast.xml</link>
     <description>Ignition Browser updates</description>
     <language>en</language>
-  <item><title>Ignition Browser 0.0.21</title><pubDate>Sat, 20 Jun 2026 09:51:09 +0000</pubDate><sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion><enclosure url="https://github.com/vadika/ignition-browser/releases/download/v0.0.21/IgnitionBrowser.app.zip" sparkle:version="2" sparkle:shortVersionString="0.0.21" sparkle:edSignature="4V5vSzhSkP++1WdpjLJAlPbUbIxufOXoKkpz6E3Nvq6MRCwC8K7SqX83vrVLPD9J49GccIZ57tgwIw9iOizzDw==" length="229594026" type="application/octet-stream"/></item></channel>
+  </channel>
 </rss>
