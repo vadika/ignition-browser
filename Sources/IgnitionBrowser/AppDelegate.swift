@@ -65,8 +65,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func installStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            // Template icon would be ideal; fall back to a title so the skeleton needs no asset.
-            button.title = "DB"
+            // "flame" = ignition. Template SF Symbol so it adapts to light/dark menu bar;
+            // fall back to a title if the symbol is unavailable.
+            if let img = NSImage(systemSymbolName: "flame.fill", accessibilityDescription: "Ignition Browser") {
+                img.isTemplate = true
+                button.image = img
+            } else {
+                button.title = "IB"
+            }
         }
 
         let menu = NSMenu()

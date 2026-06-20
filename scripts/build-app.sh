@@ -40,7 +40,12 @@ if [[ -z "${DEV_ID:-}" ]]; then
     exit 1
 fi
 
-codesign --force --options runtime --timestamp --sign "$DEV_ID" "$RES/boot"
+# boot calls Hypervisor.framework directly, and entitlements do NOT inherit to a
+# spawned child process — so the nested boot binary needs the hypervisor entitlement
+# itself (the app bundle's entitlement is not enough). gvproxy is userspace, no HVF.
+codesign --force --options runtime --timestamp \
+    --entitlements "Resources/IgnitionBrowser.entitlements" \
+    --sign "$DEV_ID" "$RES/boot"
 codesign --force --options runtime --timestamp --sign "$DEV_ID" "$RES/gvproxy"
 
 codesign --force --options runtime --timestamp \
