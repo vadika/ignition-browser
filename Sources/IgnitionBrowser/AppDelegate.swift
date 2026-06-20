@@ -91,6 +91,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ).target = self
         menu.addItem(.separator())
         menu.addItem(
+            withTitle: "Reveal Logs in Finder",
+            action: #selector(revealLogs),
+            keyEquivalent: ""
+        ).target = self
+        menu.addItem(.separator())
+        menu.addItem(
             withTitle: "Quit",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
@@ -102,6 +108,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func newSession() {
         // No URL = about:blank.
         sessions.openSession(url: nil)
+    }
+
+    @objc private func revealLogs() {
+        let dir = SessionManager.logsDir
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(dir)
     }
 
     // MARK: - Services

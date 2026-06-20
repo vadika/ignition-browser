@@ -32,6 +32,13 @@ final class SessionManager: @unchecked Sendable {
         FileManager.default.temporaryDirectory.appendingPathComponent("ib", isDirectory: true)
     }
 
+    /// Discoverable per-session serial logs (boot stdout/stderr = the guest serial
+    /// console: kiosk-loop lines + kernel dmesg). For diagnosing restored-session
+    /// issues — the "Reveal Logs" menu item opens this dir.
+    static let logsDir: URL = FileManager.default
+        .urls(for: .libraryDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("Logs/IgnitionBrowser", isDirectory: true)
+
     // MARK: - Open
 
     func openSession(url: URL?) {
@@ -116,6 +123,20 @@ final class SessionManager: @unchecked Sendable {
             } else {
                 self.destroySession(id: id)
             }
+        }
+
+        // Capture boot's serial console (kiosk-loop + guest dmesg) to a per-session log
+        // for diagnostics. Append so Ctrl+Alt+R relaunches accumulate in one file. The
+        // FileHandle is owned by `boot` and its fd is closed when boot is released.
+        try? FileManager.default.createDirectory(at: Self.logsDir, withIntermediateDirectories: true)
+        let logURL = Self.logsDir.appendingPathComponent("session-\(String(id.prefix(8))).log")
+        if !FileManager.default.fileExists(atPath: logURL.path) {
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        }
+        if let logFH = try? FileHandle(forWritingTo: logURL) {
+            logFH.seekToEndOfFile()
+            boot.standardOutput = logFH
+            boot.standardError = logFH
         }
 
         do {
