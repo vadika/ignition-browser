@@ -28,7 +28,7 @@ jobs:
             NEW="${{ github.event.inputs.force_version }}"
           else
             NEW=$(docker run --rm alpine:3.19 sh -c \
-              'apk update -q && apk policy firefox-esr 2>/dev/null | sed -n "2p" | tr -d " " | cut -d: -f1')
+              'apk update -q && apk policy firefox-esr 2>/dev/null | grep -oE "[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+" | head -1')
           fi
           OLD=$(cat .firefox-esr-version 2>/dev/null || echo "")
           echo "detected=$NEW old=$OLD"
