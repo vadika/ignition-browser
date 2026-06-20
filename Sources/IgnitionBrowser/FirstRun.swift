@@ -138,11 +138,11 @@ enum FirstRun {
 
         // 5. snapshot via the control socket (line-JSON), then wait for the manifest.
         progress("Saving the warm snapshot…")
-        if let err = sendControl(ctl, json: "{\"action\":\"snapshot\",\"name\":\"\(config.baseSnapshotName)\"}", deadline: 10) {
+        if let err = sendControl(ctl, json: "{\"action\":\"snapshot\",\"name\":\"\(config.baseSnapshotName)\"}", deadline: 90) {
             throw FirstRunError.controlFailed(err)
         }
         let manifest = snapshotDir(config).appendingPathComponent("manifest.json")
-        let deadline = Date().addingTimeInterval(30)
+        let deadline = Date().addingTimeInterval(60)
         while !fm.fileExists(atPath: manifest.path) {
             if Date() >= deadline { throw FirstRunError.snapshotTimeout }
             Thread.sleep(forTimeInterval: 0.2)
@@ -219,7 +219,10 @@ enum FirstRun {
                     for (i, b) in bytes.enumerated() { dst[i] = b }; dst[bytes.count] = 0
                 }
             }
-            var tv = timeval(tv_sec: 3, tv_usec: 0)
+            // The snapshot reply only comes AFTER boot writes memory.bin (~2 GiB) and
+            // quiesces all vCPUs — several seconds for the 4-vCPU base. 3s was too short
+            // (the read timed out -> empty "control reply:" -> first-run failed).
+            var tv = timeval(tv_sec: 90, tv_usec: 0)
             setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
             let ok = withUnsafePointer(to: &addr) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
