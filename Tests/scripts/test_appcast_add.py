@@ -28,6 +28,12 @@ def test_item_added_with_fields():
     assert enc.getAttribute("sparkle:shortVersionString") == "0.0.21"
     assert enc.getAttribute("sparkle:edSignature") == "SIGabc=="
     assert enc.getAttribute("length") == "12345"
+    assert enc.getAttribute("type") == "application/octet-stream"
+    item = items[0]
+    assert item.getElementsByTagName("title")[0].firstChild.data == "Ignition Browser 0.0.21"
+    assert item.getElementsByTagName("pubDate")  # present
+    mv = item.getElementsByTagName("sparkle:minimumSystemVersion")[0]
+    assert mv.firstChild.data == "14.0"
     os.unlink(p)
 
 def test_idempotent_on_version():
@@ -37,6 +43,14 @@ def test_idempotent_on_version():
     assert len(minidom.parse(p).getElementsByTagName("item")) == 1  # not duplicated
     os.unlink(p)
 
+def test_keeps_encoding_declaration():
+    p = seed()
+    add(p, "0.0.21", "2", "https://ex/a.zip", "SIG==", "1")
+    head = open(p, encoding="utf-8").read(60)
+    assert "encoding=\"utf-8\"" in head, head
+    os.unlink(p)
+
 if __name__ == "__main__":
     test_item_added_with_fields(); test_idempotent_on_version()
+    test_keeps_encoding_declaration()
     print("OK")

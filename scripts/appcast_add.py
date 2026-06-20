@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Prepend a signed Sparkle <item> to an appcast feed. Idempotent on shortVersion.
 Usage: appcast_add.py <appcast.xml> <shortVersion> <build> <url> <edSignature> <length>"""
-import sys, datetime
+import sys, datetime, os, tempfile
 from xml.dom import minidom
 
 def main(path, short, build, url, sig, length):
     doc = minidom.parse(path)
-    channel = doc.getElementsByTagName("channel")[0]
+    chans = doc.getElementsByTagName("channel")
+    if not chans:
+        sys.exit("appcast_add: no <channel> element in " + path)
+    channel = chans[0]
     # Idempotent: skip if an item already advertises this shortVersionString.
     for enc in doc.getElementsByTagName("enclosure"):
         if enc.getAttribute("sparkle:shortVersionString") == short:
@@ -35,8 +38,14 @@ def main(path, short, build, url, sig, length):
         channel.insertBefore(item, existing[0])
     else:
         channel.appendChild(item)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(doc.toxml())
+    xml = doc.toxml(encoding="utf-8").decode("utf-8")   # keeps <?xml ... encoding="utf-8"?>
+    d = os.path.dirname(os.path.abspath(path))
+    fd, tmp = tempfile.mkstemp(dir=d, suffix=".xml")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(xml)
+    os.replace(tmp, path)                                # atomic; never leaves a truncated feed
 
 if __name__ == "__main__":
+    if len(sys.argv) != 7:
+        sys.exit("Usage: appcast_add.py <appcast.xml> <shortVersion> <build> <url> <edSignature> <length>")
     main(*sys.argv[1:7])
