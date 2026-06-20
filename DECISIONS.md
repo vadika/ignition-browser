@@ -12,8 +12,9 @@ plus a one-line rationale.
 - **Guest browser: Firefox.** ignition already builds a Firefox-kiosk base + a
   `browser-base` warm snapshot (vendor/ignition/scripts/make-browser-base.sh);
   Chromium dropped to avoid maintaining two guest stacks.
-- **IME / international input: deferred.** v1 uses raw keycodes via ignition's existing
-  virtio-input; full IME is a later stage.
+- **International input: keyboard layouts SHIPPED (v0.0.22), full IME deferred.** The guest
+  follows the macOS keyboard layout (Cyrillic/German/etc.) via baked xkb groups + host-driven
+  group switching (see "Shipped since the MVP"). Dead-key composition and CJK/IME are a later stage.
 - **Networking: gvisor-tap-vsock (gvproxy), user-mode, unprivileged.** boot's existing
   `--net-socket <path>` speaks the qemu `-netdev socket` protocol (4-byte BE length +
   ethernet frame, no handshake), wire-compatible with gvproxy `-listen-qemu`, so no
@@ -82,12 +83,19 @@ plus a one-line rationale.
   bumps + tags, and `release.yml` ships it. Gotchas baked into the scripts: bundle+sign
   `Sparkle.framework` with an `@executable_path/../Frameworks` rpath; the rebuild job pushes
   the tag via a **deploy key** (GITHUB_TOKEN-pushed tags don't trigger workflows).
+- **International keyboard layouts (v0.0.22).** The guest keyboard follows the macOS layout.
+  cage can't reload its xkb keymap at runtime, so the rootfs bakes a superset as xkb GROUPS
+  (`XKB_DEFAULT_LAYOUT="us,ru,de,fr,es,it,ua,pl"`, `grp:sclk_toggle`); `boot`'s `display_sink`
+  reads the live macOS layout (Carbon TIS) and, before each key press, injects Scroll Lock to
+  advance the guest to the matching group. All in `firecracker-mac`; HVF-verified (Russian →
+  Cyrillic). Layouts only — dead keys / IME are still deferred.
 
 ## Open / deferred
 
 - **Native-window embedding (v2)** — embed the guest framebuffer in a SwiftUI window
   instead of letting boot own its winit NSWindow.
-- **IME / international input** — later stage; v1 is raw keycodes only.
+- **Full IME (dead keys / AltGr / CJK composition)** — keyboard *layouts* shipped (v0.0.22);
+  composition input would need a Wayland virtual-keyboard text-injection path in the guest.
 - **Clipboard sharing** — deferred unless explicitly requested (paste-in/copy-out
   between host and guest).
 - **Warm-parent re-warm optimization** — keep a warm parent and re-warm after each
