@@ -30,9 +30,29 @@ enum FirstRun {
         config.store.appendingPathComponent("snapshots/\(config.baseSnapshotName)", isDirectory: true)
     }
 
+    /// Fingerprint of the bundled guest assets (kernel + rootfs), by file size. Changes
+    /// whenever the shipped guest changes, so an upgraded app rebuilds browser-base
+    /// instead of silently restoring a stale snapshot built by a previous version.
+    static func guestStamp(_ config: Config) -> String {
+        let fm = FileManager.default
+        func size(_ url: URL?) -> Int64 {
+            guard let url, let a = try? fm.attributesOfItem(atPath: url.path) else { return 0 }
+            return (a[.size] as? NSNumber)?.int64Value ?? 0
+        }
+        return "\(size(config.rootfsArchive ?? config.rootfsRaw))-\(size(config.kernelImage))"
+    }
+
+    private static func stampFile(_ config: Config) -> URL {
+        snapshotDir(config).appendingPathComponent(".guest-stamp")
+    }
+
     static func isComplete(_ config: Config) -> Bool {
-        FileManager.default.fileExists(
-            atPath: snapshotDir(config).appendingPathComponent("manifest.json").path)
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: snapshotDir(config).appendingPathComponent("manifest.json").path)
+        else { return false }
+        let stamp = (try? String(contentsOf: stampFile(config), encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return stamp == guestStamp(config)
     }
 
     /// Build `browser-base`. `progress` is called with human-readable status lines (main-thread
@@ -40,6 +60,8 @@ enum FirstRun {
     static func run(_ config: Config, progress: @escaping (String) -> Void) throws {
         let fm = FileManager.default
         try fm.createDirectory(at: config.store, withIntermediateDirectories: true)
+        // Drop any stale base (e.g. one left by a previous app version) so we rebuild clean.
+        try? fm.removeItem(at: snapshotDir(config))
 
         // 1. disk-space preflight (need ~4 GiB for the snapshot: memory.bin ~2G + disk ~1.5G).
         if let attrs = try? fm.attributesOfFileSystem(forPath: config.store.path),
@@ -109,6 +131,9 @@ enum FirstRun {
             if Date() >= deadline { throw FirstRunError.snapshotTimeout }
             Thread.sleep(forTimeInterval: 0.2)
         }
+        // Stamp the store with the guest fingerprint so isComplete() can detect a future
+        // asset change and rebuild. Written last: only a fully-built base counts as complete.
+        try? guestStamp(config).write(to: stampFile(config), atomically: true, encoding: .utf8)
         progress("Ready.")
         // boot + gvproxy terminated by defers; temp work dir (incl. the decompressed rootfs) removed.
     }

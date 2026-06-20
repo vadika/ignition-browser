@@ -20,6 +20,13 @@ final class FirstRunTests: XCTestCase {
         let snap = FirstRun.snapshotDir(cfg)
         try FileManager.default.createDirectory(at: snap, withIntermediateDirectories: true)
         try Data("{}".utf8).write(to: snap.appendingPathComponent("manifest.json"))
+        // A manifest alone is no longer enough: the guest stamp must match too, so a
+        // base built by a previous app version (different assets) is rebuilt.
+        XCTAssertFalse(FirstRun.isComplete(cfg))
+        try Data(FirstRun.guestStamp(cfg).utf8).write(to: snap.appendingPathComponent(".guest-stamp"))
         XCTAssertTrue(FirstRun.isComplete(cfg))
+        // A mismatched stamp (assets changed) must read as incomplete.
+        try Data("stale".utf8).write(to: snap.appendingPathComponent(".guest-stamp"))
+        XCTAssertFalse(FirstRun.isComplete(cfg))
     }
 }

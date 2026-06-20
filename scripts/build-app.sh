@@ -25,6 +25,7 @@ mkdir -p "$MACOS" "$RES"
 
 cp ".build/release/IgnitionBrowser" "$MACOS/IgnitionBrowser"
 cp "Resources/Info.plist" "$CONTENTS/Info.plist"
+cp "Resources/AppIcon.icns" "$RES/AppIcon.icns"
 
 # Nested runtime binaries.
 cp "vendor/ignition/target/release/boot" "$RES/boot"
