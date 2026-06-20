@@ -15,4 +15,6 @@ def main(path):
     print(new)
 
 if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        sys.exit("Usage: bump_patch.py <Info.plist>")
     main(sys.argv[1])

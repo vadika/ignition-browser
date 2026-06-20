@@ -97,6 +97,10 @@ jobs:
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
         run: |
           set -euo pipefail
+          if [ -z "${SPARKLE_ED_PRIVATE_KEY:-}" ]; then
+            echo "SPARKLE_ED_PRIVATE_KEY not set; skipping appcast update (release .app still publishes)"
+            exit 0
+          fi
           ZIP=dist/IgnitionBrowser.app.zip
           SHORT="${GITHUB_REF_NAME#v}"
           BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" Resources/Info.plist)
@@ -107,6 +111,7 @@ jobs:
           KEYF="${RUNNER_TEMP:-/tmp}/ed_priv.key"
           ( umask 077; printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$KEYF" )
           SIG=$("$SIGN" "$ZIP" -f "$KEYF" | sed -E 's/.*sparkle:edSignature="([^"]+)".*/\1/')
+          [ -n "$SIG" ] || { echo "sign_update produced an empty signature" >&2; exit 1; }
           rm -f "$KEYF"
           python3 scripts/appcast_add.py docs/appcast.xml "$SHORT" "$BUILD" "$URL" "$SIG" "$LEN"
           git config user.name  "github-actions[bot]"
