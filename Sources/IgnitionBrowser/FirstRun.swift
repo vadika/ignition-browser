@@ -40,8 +40,8 @@ enum FirstRun {
     /// changes — the boot resolution (GUI_W/GUI_H), or a rootfs change we must be sure
     /// rebuilds (the raw ext4 is a fixed size; only the bundled .gz size varies, so this
     /// is the guaranteed lever). r2 = 1400x880 window; r3 = restore net re-init +
-    /// close-Firefox-ends-session rootfs.
-    static let baseRecipeVersion = 3
+    /// close-Firefox-ends-session rootfs; r4 = firefox exit-code (close vs crash) rootfs.
+    static let baseRecipeVersion = 4
 
     /// Fingerprint of the bundled guest assets + the base-build recipe. Changes whenever
     /// the shipped guest OR a build parameter (vCPU count, recipe version) changes, so an
