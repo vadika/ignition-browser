@@ -53,8 +53,8 @@ codesign --force --options runtime --timestamp --sign "$DEV_ID" "$RES/gvproxy"
 # runtime + timestamp on each nested executable, then the framework, then the app.
 FRAMEWORKS="$CONTENTS/Frameworks"
 mkdir -p "$FRAMEWORKS"
-SPARKLE_SRC="$(find .build/release -maxdepth 1 -name Sparkle.framework | head -1)"
-[ -n "$SPARKLE_SRC" ] || { echo "Sparkle.framework not found in .build/release (run swift build -c release first)" >&2; exit 1; }
+SPARKLE_SRC="$(find .build -maxdepth 4 -path '*release*' -name Sparkle.framework | head -1)"
+[ -n "$SPARKLE_SRC" ] || { echo "Sparkle.framework not found under .build (run swift build -c release first)" >&2; exit 1; }
 rm -rf "$FRAMEWORKS/Sparkle.framework"
 cp -R "$SPARKLE_SRC" "$FRAMEWORKS/Sparkle.framework"
 SPK="$FRAMEWORKS/Sparkle.framework/Versions/B"
