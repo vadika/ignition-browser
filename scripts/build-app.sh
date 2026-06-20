@@ -24,6 +24,10 @@ rm -rf "$APP"
 mkdir -p "$MACOS" "$RES"
 
 cp ".build/release/IgnitionBrowser" "$MACOS/IgnitionBrowser"
+# The SPM binary only carries an @loader_path rpath; add the bundle Frameworks dir so dyld
+# finds the bundled Sparkle.framework (@rpath/Sparkle.framework/...) at runtime. Without this
+# the app crashes at launch with "Library not loaded". Done before signing (it edits the binary).
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$MACOS/IgnitionBrowser"
 cp "Resources/Info.plist" "$CONTENTS/Info.plist"
 cp "Resources/AppIcon.icns" "$RES/AppIcon.icns"
 
