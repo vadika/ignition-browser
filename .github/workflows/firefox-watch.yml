@@ -47,6 +47,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          # Push tags over SSH with a deploy key (NOT GITHUB_TOKEN): token-pushed tags do
+          # not trigger release.yml, but a deploy-key push does — enabling zero-touch releases.
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
       - name: Rebuild rootfs + publish assets
         run: |
           set -euo pipefail
