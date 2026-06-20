@@ -15,10 +15,14 @@ final class ServicesProvider: NSObject {
         userData: String?,
         error: AutoreleasingUnsafeMutablePointer<NSString>
     ) {
-        // Try a typed URL first, then fall back to plain text.
-        let raw = pboard.string(forType: .URL) ?? pboard.string(forType: .string)
+        // A selected hyperlink arrives as the typed `public.url` flavor (plist/data, not a
+        // string), so `string(forType:.URL)` returns nil for it — read it via NSURL first.
+        // Fall back to selected plain text (a URL typed/pasted as text).
+        let raw = NSURL(from: pboard)?.absoluteString
+            ?? pboard.string(forType: .URL)
+            ?? pboard.string(forType: .string)
         guard let raw else {
-            error.pointee = "No text found on the pasteboard." as NSString
+            error.pointee = "No URL or text found on the pasteboard." as NSString
             return
         }
         guard let url = URLValidator.normalize(raw) else {
