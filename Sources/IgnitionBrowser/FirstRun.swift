@@ -171,7 +171,9 @@ enum FirstRun {
     private static func spawnGvproxy(config: Config, qemuSock: URL, ctlSock: URL) throws -> Process {
         let p = Process()
         p.executableURL = config.gvproxyBinary
-        p.arguments = ["-listen", "unix://\(ctlSock.path)", "-listen-qemu", "unix://\(qemuSock.path)"]
+        // -ssh-port -1: disable the default 127.0.0.1:2222 forward so this gvproxy never
+        // collides with a session's gvproxy (or a leftover) on that fixed port.
+        p.arguments = ["-listen", "unix://\(ctlSock.path)", "-listen-qemu", "unix://\(qemuSock.path)", "-ssh-port", "-1"]
         do { try p.run() } catch { throw FirstRunError.bootSpawn("gvproxy: \(error.localizedDescription)") }
         return p
     }

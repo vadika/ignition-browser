@@ -167,6 +167,11 @@ final class SessionManager: @unchecked Sendable {
         p.arguments = [
             "-listen", "unix://\(ctlSock.path)",
             "-listen-qemu", "unix://\(qemuSock.path)",
+            // Disable gvproxy's default 127.0.0.1:2222 SSH forward. We never SSH into the
+            // guest (URLs go over vsock), and the fixed port means a second gvproxy —
+            // another session, or a leftover — fails with "address already in use" and the
+            // session never gets net. -1 = no forwards.
+            "-ssh-port", "-1",
         ]
         do {
             try p.run()
