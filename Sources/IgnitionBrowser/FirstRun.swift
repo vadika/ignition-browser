@@ -192,19 +192,34 @@ enum FirstRun {
     }
 
     /// Read `pipe` until a line containing `marker` appears or `timeout` elapses.
+    /// The deadline is a HARD wall-clock bound: a readabilityHandler drains the pipe on a
+    /// background queue while we block on a semaphore, so a boot that stalls silently
+    /// (no output, no EOF) fails the first-run with browserReadyTimeout instead of hanging
+    /// the "Warming…" window forever. (The old `availableData` loop blocked indefinitely
+    /// in that case — the deadline was only checked between reads.)
     private static func waitForLine(_ pipe: Pipe, marker: String, timeout: TimeInterval) -> Bool {
-        let fh = pipe.fileHandleForReading
-        let end = Date().addingTimeInterval(timeout)
-        var buf = Data()
-        while Date() < end {
-            // `timeout` is enforced only between reads: availableData blocks, so the deadline is checked after each read returns (relies on boot emitting serial output steadily, which it does).
-            let chunk = fh.availableData          // blocks until data or EOF
-            if chunk.isEmpty { return false }     // EOF (boot exited)
-            buf.append(chunk)
-            if let s = String(data: buf, encoding: .utf8), s.contains(marker) { return true }
-            if buf.count > 1_048_576 { buf.removeFirst(buf.count - 65_536) } // cap memory
+        // Mutable state shared with the background readabilityHandler; guarded by `lock`.
+        final class State: @unchecked Sendable {
+            let lock = NSLock(); var buf = Data(); var found = false
         }
-        return false
+        let fh = pipe.fileHandleForReading
+        let sem = DispatchSemaphore(value: 0)
+        let st = State()
+        fh.readabilityHandler = { h in
+            let chunk = h.availableData
+            if chunk.isEmpty { sem.signal(); return }   // EOF (boot exited)
+            st.lock.lock(); defer { st.lock.unlock() }
+            st.buf.append(chunk)
+            if st.buf.count > 1_048_576 { st.buf.removeFirst(st.buf.count - 65_536) } // cap memory
+            if let s = String(data: st.buf, encoding: .utf8), s.contains(marker) {
+                st.found = true
+                sem.signal()
+            }
+        }
+        _ = sem.wait(timeout: .now() + timeout)
+        fh.readabilityHandler = nil
+        st.lock.lock(); defer { st.lock.unlock() }
+        return st.found
     }
 
     /// Connect boot's --control-sock, write one JSON line, read the reply; nil on success,
