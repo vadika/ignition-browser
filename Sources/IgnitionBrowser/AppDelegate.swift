@@ -7,6 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var servicesProvider: ServicesProvider?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Menu-bar agent: no Dock icon, and must NOT quit when the (only) window — the
+        // first-run progress sheet — closes. Without this the app exited right after the
+        // base build finished and never stayed resident in the menu bar.
+        NSApp.setActivationPolicy(.accessory)
         sessions.sweepOrphans()
         installStatusItem()
         registerServices()
@@ -14,6 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !FirstRun.isComplete(config) {
             runFirstRun(config)
         }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
     }
 
     // MARK: - First run

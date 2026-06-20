@@ -104,7 +104,9 @@ enum FirstRun {
         let boot = Process()
         boot.executableURL = config.bootBinary
         boot.arguments = [
-            "--gui", "--net", "--net-socket", gvSock.path,
+            // --gui-hidden: the guest renders + snapshots normally but the host window
+            // stays hidden, so the warming browser never flashes a clickable window.
+            "--gui-hidden", "--net", "--net-socket", gvSock.path,
             "--vsock-uds", vsock.path, "--control-sock", ctl.path,
             "--store", config.store.path, "--name", config.baseSnapshotName,
             "--append", "ro init=/sbin/overlay-init",

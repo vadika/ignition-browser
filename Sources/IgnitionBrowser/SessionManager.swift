@@ -49,41 +49,73 @@ final class SessionManager: @unchecked Sendable {
             return
         }
 
-        var session = Session(id: id, dir: dir, gvproxySock: gvproxySock,
+        let session = Session(id: id, dir: dir, gvproxySock: gvproxySock,
                               gvproxyCtl: gvproxyCtl, vsockUds: vsockUds)
+        lock.lock()
+        sessions[id] = session
+        lock.unlock()
 
-        // One filtered gvproxy per session child (gvproxy is single-client: it exits
-        // when its qemu peer disconnects). It must be up — its qemu socket bound —
-        // before boot, which connects to --net-socket on startup.
-        guard let gvproxy = spawnGvproxy(qemuSock: gvproxySock, ctlSock: gvproxyCtl) else {
-            cleanupFiles(dir: dir)
+        guard launchVM(id) else {
+            destroySession(id: id)
             return
         }
-        session.gvproxy = gvproxy
-        if !waitForSocket(gvproxySock, timeout: 5) {
+
+        if let url {
+            injectURL(url, session: id)
+        }
+    }
+
+    /// boot's exit code requesting a cold-reset relaunch (Ctrl+Alt+R under --gui).
+    /// Must match `RESET_RELAUNCH_EXIT` in ignition's display_sink.rs.
+    private static let resetRelaunchExit: Int32 = 42
+
+    /// Spawn gvproxy + boot for an already-registered session and wire the termination
+    /// handler. Reused for the initial open AND for the Ctrl+Alt+R cold reset: boot
+    /// exits with `resetRelaunchExit`, and rather than tear the session down we
+    /// re-restore the clone from the snapshot (a fresh disposable session). Returns
+    /// false if the VM could not be started.
+    private func launchVM(_ id: String) -> Bool {
+        lock.lock()
+        guard let session = sessions[id] else { lock.unlock(); return false }
+        lock.unlock()
+
+        // A reset relaunch reuses the session dir. The prior gvproxy is single-client
+        // and exits when boot disconnects, but terminate it defensively and clear its
+        // sockets so the fresh gvproxy can bind.
+        if let old = session.gvproxy, old.isRunning { old.terminate() }
+        try? FileManager.default.removeItem(at: session.gvproxySock)
+        try? FileManager.default.removeItem(at: session.gvproxyCtl)
+
+        // One filtered gvproxy per session child; it must be up (qemu socket bound)
+        // before boot, which connects to --net-socket on startup.
+        guard let gvproxy = spawnGvproxy(qemuSock: session.gvproxySock, ctlSock: session.gvproxyCtl) else {
+            return false
+        }
+        if !waitForSocket(session.gvproxySock, timeout: 5) {
             NSLog("IgnitionBrowser: gvproxy qemu socket never came up")
             gvproxy.terminate()
-            cleanupFiles(dir: dir)
-            return
+            return false
         }
 
-        // Spawn the boot child. argv array — NEVER a shell string.
-        // rootfs comes from the snapshot, so no positional rootfs disk is passed.
-        // TODO(M2): warm-parent management + re-warm after each claim. For the skeleton
-        // each session restores from browser-base directly (still fast via MAP_PRIVATE);
-        // the parent-rewarm optimization is deferred.
+        // Spawn the boot child. argv array — NEVER a shell string. rootfs comes from
+        // the snapshot, so no positional rootfs disk is passed.
         let boot = Process()
         boot.executableURL = config.bootBinary
         boot.arguments = [
             "--gui",
             "--restore", config.baseSnapshotName,
             "--store", config.store.path,
-            "--net", "--net-socket", gvproxySock.path,
-            "--vsock-uds", vsockUds.path,
+            "--net", "--net-socket", session.gvproxySock.path,
+            "--vsock-uds", session.vsockUds.path,
             config.kernelImage.path,
         ]
-        boot.terminationHandler = { [weak self] _ in
-            self?.destroySession(id: id)
+        boot.terminationHandler = { [weak self] proc in
+            guard let self else { return }
+            if proc.terminationStatus == Self.resetRelaunchExit {
+                if !self.launchVM(id) { self.destroySession(id: id) }
+            } else {
+                self.destroySession(id: id)
+            }
         }
 
         do {
@@ -91,18 +123,17 @@ final class SessionManager: @unchecked Sendable {
         } catch {
             NSLog("IgnitionBrowser: failed to spawn boot: \(error)")
             gvproxy.terminate()
-            cleanupFiles(dir: dir)
-            return
+            return false
         }
-        session.boot = boot
 
         lock.lock()
-        sessions[id] = session
-        lock.unlock()
-
-        if let url {
-            injectURL(url, session: id)
+        if var s = sessions[id] {
+            s.boot = boot
+            s.gvproxy = gvproxy
+            sessions[id] = s
         }
+        lock.unlock()
+        return true
     }
 
     /// Spawn one filtered gvproxy for this session: user-mode NAT/DNS over a qemu
