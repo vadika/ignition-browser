@@ -37,9 +37,11 @@ enum FirstRun {
     static let baseVcpus = 4
 
     /// Bump when a base-build parameter that is NOT captured by file sizes or baseVcpus
-    /// changes — notably the boot binary's guest resolution (GUI_W/GUI_H). r2 = the
-    /// 1400x880 integer-scaled window (ignition 0cf9d1c).
-    static let baseRecipeVersion = 2
+    /// changes — the boot resolution (GUI_W/GUI_H), or a rootfs change we must be sure
+    /// rebuilds (the raw ext4 is a fixed size; only the bundled .gz size varies, so this
+    /// is the guaranteed lever). r2 = 1400x880 window; r3 = restore net re-init +
+    /// close-Firefox-ends-session rootfs.
+    static let baseRecipeVersion = 3
 
     /// Fingerprint of the bundled guest assets + the base-build recipe. Changes whenever
     /// the shipped guest OR a build parameter (vCPU count, recipe version) changes, so an
