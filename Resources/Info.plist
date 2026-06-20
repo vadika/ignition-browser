@@ -25,6 +25,16 @@
     <!-- Menu-bar agent: no Dock icon. -->
     <key>LSUIElement</key>
     <true/>
+    <key>SUFeedURL</key>
+    <string>https://vadika.github.io/ignition-browser/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUAutomaticallyUpdate</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
     <key>NSServices</key>
     <array>
         <dict>

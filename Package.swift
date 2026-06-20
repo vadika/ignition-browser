@@ -2,8 +2,6 @@
 import PackageDescription
 
 // Ignition Browser — menu-bar macOS app (Apple Silicon).
-// No external SwiftPM deps in the skeleton.
-// TODO(M6): add Sparkle (https://github.com/sparkle-project/Sparkle) as a dependency for auto-update.
 let package = Package(
     name: "IgnitionBrowser",
     platforms: [
@@ -12,9 +10,13 @@ let package = Package(
     products: [
         .executable(name: "IgnitionBrowser", targets: ["IgnitionBrowser"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0")
+    ],
     targets: [
         .executableTarget(
             name: "IgnitionBrowser",
+            dependencies: [.product(name: "Sparkle", package: "Sparkle")],
             path: "Sources/IgnitionBrowser"
         ),
         .testTarget(
