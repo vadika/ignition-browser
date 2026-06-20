@@ -41,7 +41,11 @@ enum FirstRun {
     /// rebuilds (the raw ext4 is a fixed size; only the bundled .gz size varies, so this
     /// is the guaranteed lever). r2 = 1400x880 window; r3 = restore net re-init +
     /// close-Firefox-ends-session rootfs; r4 = firefox exit-code (close vs crash) rootfs.
-    static let baseRecipeVersion = 5
+    static let baseRecipeVersion = 6
+
+    /// Seconds to let Firefox quiesce after BROWSER_READY before taking the warm snapshot,
+    /// so the snapshot captures a fully-painted, idle browser (less to redo on restore).
+    static let settleSeconds: TimeInterval = 3
 
     /// Fingerprint of the bundled guest assets + the base-build recipe. Changes whenever
     /// the shipped guest OR a build parameter (vCPU count, recipe version) changes, so an
@@ -139,6 +143,12 @@ enum FirstRun {
         guard waitForLine(outPipe, marker: "BROWSER_READY", timeout: 120) else {
             throw FirstRunError.browserReadyTimeout
         }
+
+        // BROWSER_READY fires as soon as the guest reports the browser up, but Firefox may
+        // still be finishing first paint / homepage load / JS settle at that instant. Let it
+        // quiesce so the warm snapshot captures a fully-painted, idle browser — a restored
+        // clone then has nothing pending to redo and reacts to the first URL immediately.
+        Thread.sleep(forTimeInterval: Self.settleSeconds)
 
         // 5. snapshot via the control socket (line-JSON), then wait for the manifest.
         progress("Saving the warm snapshot…")
