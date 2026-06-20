@@ -21,6 +21,9 @@
   .btn:hover{text-decoration:none;filter:brightness(1.06)}
   .shot{display:block;max-width:420px;width:100%;height:auto;margin:18px auto;border:1px solid var(--line);
     border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+  .aside{margin:0;display:flex;flex-direction:column;justify-content:center;gap:8px}
+  .aside img{width:100%;height:auto;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
+  .aside figcaption{margin:0}
   h2{font-size:13px;margin:0 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px}
@@ -46,9 +49,8 @@
     <a class="btn" href="https://github.com/vadika/ignition-browser/releases/latest">Download</a>
   </header>
 
-  <img class="shot" src="menu.png" width="546" height="315"
-       alt="Ignition Browser menu-bar item: New Ignition Browser, Reveal Logs in Finder, Quit">
-
+  <img class="shot" src="menu.png" width="748" height="518"
+       alt="Ignition Browser menu: New Ignition Browser, Open URL…, Open Clipboard URL, Reveal Logs in Finder, version, Quit">
 
   <div class="panel">
     <h2>Shortcuts</h2>
@@ -69,13 +71,11 @@
         <li><b>User-mode net</b> — NAT only; host + LAN blocked.</li>
       </ul>
     </div>
-    <div class="panel">
-      <h2>Requirements</h2>
-      <ul>
-        <li>Apple Silicon Mac, macOS 15+.</li>
-        <li>~1&nbsp;GB free disk (guest image, built once).</li>
-      </ul>
-    </div>
+    <figure class="aside">
+      <img src="warmup.png" width="436" height="163"
+           alt="One-time first-run setup: a progress sheet reading Saving the warm snapshot…">
+      <figcaption class="note">One-time setup builds the warm snapshot locally (~30s); every session after is an instant clone.</figcaption>
+    </figure>
   </div>
 
   <div class="panel lic">
@@ -88,6 +88,8 @@
     <b>Linux</b> GPL-2.0
     <p class="note">Firefox is a Mozilla Foundation trademark; not affiliated with Mozilla or Apple. Ignition Browser &copy; 2026 Vadim Likholetov · <a href="https://github.com/vadika/ignition-browser">source</a>.</p>
   </div>
+
+  <p class="note" style="text-align:center">Requires an Apple Silicon Mac, macOS 15+, and ~1&nbsp;GB free disk (guest image, built once).</p>
 
   <footer>built on <a href="https://github.com/vadika/ignition">ignition</a></footer>
 
