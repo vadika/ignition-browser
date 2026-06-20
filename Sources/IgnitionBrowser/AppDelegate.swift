@@ -1,10 +1,14 @@
 import AppKit
+import Carbon.HIToolbox
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let sessions = SessionManager.shared
     private var statusItem: NSStatusItem?
     private var servicesProvider: ServicesProvider?
+    private var urlPanel: URLEntryPanel?
+    private var hotKey: HotKey?
+    private var clipboardItem: NSMenuItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Menu-bar agent: no Dock icon, and must NOT quit when the (only) window — the
@@ -14,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sessions.sweepOrphans()
         installStatusItem()
         registerServices()
+        installURLEntry()
         let config = Config.resolve()
         if !FirstRun.isComplete(config) {
             runFirstRun(config)
@@ -84,23 +89,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
-        menu.addItem(
-            withTitle: "New Ignition Browser",
-            action: #selector(newSession),
-            keyEquivalent: "n"
-        ).target = self
+        menu.autoenablesItems = true
+        menu.addItem(withTitle: "New Ignition Browser", action: #selector(newSession), keyEquivalent: "n").target = self
+        let openURL = NSMenuItem(title: "Open URL…", action: #selector(showURLPanel), keyEquivalent: "i")
+        // Surface the ⌥⌘I global hotkey in the menu for discoverability. The real binding is
+        // the Carbon hotkey (works system-wide); this only displays the glyph (an accessory
+        // app's status menu doesn't process key equivalents globally, so it won't double-fire).
+        openURL.keyEquivalentModifierMask = [.option, .command]
+        openURL.target = self
+        menu.addItem(openURL)
+
+        let clip = NSMenuItem(title: "Open Clipboard URL", action: #selector(openClipboardURL), keyEquivalent: "")
+        clip.target = self
+        clipboardItem = clip
+        menu.addItem(clip)
+
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: "Reveal Logs in Finder",
-            action: #selector(revealLogs),
-            keyEquivalent: ""
-        ).target = self
+        menu.addItem(withTitle: "Reveal Logs in Finder", action: #selector(revealLogs), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: "Quit",
-            action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q"
-        )
+
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+        let versionItem = NSMenuItem(title: "Ignition Browser v\(version)", action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+
+        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         statusItem = item
     }
@@ -114,6 +127,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dir = SessionManager.logsDir
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         NSWorkspace.shared.open(dir)
+    }
+
+    // MARK: - URL entry (panel + global hotkey)
+
+    private func installURLEntry() {
+        let panel = URLEntryPanel { [weak self] url in
+            self?.sessions.openSession(url: url)
+        }
+        urlPanel = panel
+        // ⌥⌘I : option+command+I. kVK_ANSI_I = 34.
+        hotKey = HotKey(keyCode: 34, modifiers: UInt32(optionKey | cmdKey)) { [weak self] in
+            self?.showURLPanel()
+        }
+    }
+
+    @objc private func showURLPanel() {
+        urlPanel?.show(under: statusItem)
+    }
+
+    @objc private func openClipboardURL() {
+        guard let s = NSPasteboard.general.string(forType: .string),
+              let url = URLValidator.normalize(s) else { return }
+        sessions.openSession(url: url)
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(openClipboardURL) {
+            let s = NSPasteboard.general.string(forType: .string)
+            return s.flatMap(URLValidator.normalize) != nil
+        }
+        return true
     }
 
     // MARK: - Services

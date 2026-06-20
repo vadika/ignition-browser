@@ -19,6 +19,8 @@
   .btn{display:inline-block;margin-top:12px;padding:8px 18px;border-radius:9px;font-weight:600;
     background:linear-gradient(180deg,var(--flame1),var(--flame2));color:#fff}
   .btn:hover{text-decoration:none;filter:brightness(1.06)}
+  .shot{display:block;max-width:420px;width:100%;height:auto;margin:18px auto;border:1px solid var(--line);
+    border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.45)}
   h2{font-size:13px;margin:0 0 8px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px}
@@ -44,19 +46,18 @@
     <a class="btn" href="https://github.com/vadika/ignition-browser/releases/latest">Download</a>
   </header>
 
+  <img class="shot" src="menu.png" width="546" height="315"
+       alt="Ignition Browser menu-bar item: New Ignition Browser, Reveal Logs in Finder, Quit">
+
+
   <div class="panel">
     <h2>Shortcuts</h2>
     <div class="grid2">
       <div class="sc"><span><kbd>⌃</kbd><kbd>⌥</kbd><kbd>R</kbd></span><span class="act">Reset — fresh session</span></div>
-      <div class="sc"><span><kbd>⌃</kbd><kbd>L</kbd></span><span class="act">Address bar</span></div>
       <div class="sc"><span><kbd>⌃</kbd><kbd>⌥</kbd><kbd>S</kbd></span><span class="act">Snapshot VM</span></div>
-      <div class="sc"><span><kbd>⌃</kbd><kbd>R</kbd></span><span class="act">Reload</span></div>
       <div class="sc"><span><kbd>⌃</kbd><kbd>⌥</kbd><kbd>X</kbd></span><span class="act">Close session</span></div>
-      <div class="sc"><span><kbd>⌃</kbd><kbd>⇧</kbd><kbd>R</kbd></span><span class="act">Hard reload</span></div>
-      <div class="sc"><span><kbd>⌃</kbd><kbd>F</kbd></span><span class="act">Find on page</span></div>
-      <div class="sc"><span><kbd>⌃</kbd><kbd>+</kbd> / <kbd>−</kbd></span><span class="act">Zoom</span></div>
     </div>
-    <p class="note">Host keys use <kbd>⌃</kbd><kbd>⌥</kbd> (Ctrl+Alt); everything else goes to Firefox.</p>
+    <p class="note">Host keys use <kbd>⌃</kbd><kbd>⌥</kbd> (Ctrl+Alt); standard Firefox shortcuts (address bar, reload, find, zoom…) all go to Firefox.</p>
   </div>
 
   <div class="cols">
