@@ -83,6 +83,11 @@ plus a one-line rationale.
   bumps + tags, and `release.yml` ships it. Gotchas baked into the scripts: bundle+sign
   `Sparkle.framework` with an `@executable_path/../Frameworks` rpath; the rebuild job pushes
   the tag via a **deploy key** (GITHUB_TOKEN-pushed tags don't trigger workflows).
+- **Resizable browser window (v0.0.23).** Dragging the `--gui` window edge re-modesets the guest
+  (virtio-gpu connector-cycle) and the desktop reflows. Requires the new boot (drives the cycle,
+  tablet range now fixed 0..32767) AND an Alpine 3.21 / cage 0.2.0 rootfs that survives the
+  output disconnect — shipped together (submodule pin `2bc5272`, `baseRecipeVersion` 7 forces the
+  warm-base re-create so the new tablet range is re-probed). Size clamps to [320×240, 1400×880].
 - **International keyboard layouts (v0.0.22).** The guest keyboard follows the macOS layout.
   cage can't reload its xkb keymap at runtime, so the rootfs bakes a superset as xkb GROUPS
   (`XKB_DEFAULT_LAYOUT="us,ru,de,fr,es,it,ua,pl"`, `grp:sclk_toggle`); `boot`'s `display_sink`

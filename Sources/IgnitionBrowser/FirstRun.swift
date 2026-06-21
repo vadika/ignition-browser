@@ -40,8 +40,10 @@ enum FirstRun {
     /// changes — the boot resolution (GUI_W/GUI_H), or a rootfs change we must be sure
     /// rebuilds (the raw ext4 is a fixed size; only the bundled .gz size varies, so this
     /// is the guaranteed lever). r2 = 1400x880 window; r3 = restore net re-init +
-    /// close-Firefox-ends-session rootfs; r4 = firefox exit-code (close vs crash) rootfs.
-    static let baseRecipeVersion = 6
+    /// close-Firefox-ends-session rootfs; r4 = firefox exit-code (close vs crash) rootfs;
+    /// r7 = resizable framebuffer: new boot probes tablet range 0..32767 (not in the
+    /// stamp) + Alpine 3.21 / cage 0.2.0 guest that survives the resize connector-cycle.
+    static let baseRecipeVersion = 7
 
     /// Seconds to let Firefox quiesce after BROWSER_READY before taking the warm snapshot,
     /// so the snapshot captures a fully-painted, idle browser (less to redo on restore).
